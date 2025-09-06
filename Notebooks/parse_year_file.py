@@ -1,4 +1,149 @@
+import os
 import pandas as pd
+
+def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.csv"):
+    """
+    Updates No-Kill-Colorado-Data.csv with new data for a given year, removing any existing data for that year.
+    Appends new data, sorts, and overwrites the file.
+    """
+    import numpy as np
+    import os
+    columns = [
+        "facility_name", "other_party", "year", "year_part", "animal_age", "animal_type", "facility_metric_value"
+    ]
+    # Read existing data if file exists
+    if os.path.exists(output_path):
+        existing_df = pd.read_csv(output_path)
+    else:
+        existing_df = pd.DataFrame(columns=columns)
+
+    # Get the year from the new data (expect only one)
+    years = df["year"].dropna().unique()
+    if len(years) == 1:
+        year = years[0]
+        # Remove any rows from existing_df with this year
+        existing_df = existing_df[existing_df["year"] != year]
+
+    # Assemble new data with required columns
+    new_df = df.copy()
+    # Ensure all required columns exist
+    for col in columns:
+        if col not in new_df.columns:
+            new_df[col] = ""
+    new_df = new_df[columns]
+
+    # Append and sort
+    combined = pd.concat([existing_df, new_df], ignore_index=True)
+    combined = combined.sort_values(by=["year", "year_part", "animal_type", "animal_age", "other_party", "facility_name"])
+    combined.to_csv(output_path, index=False)
+    return combined
+
+
+def check_animal_synonym(df, synonyms_path="./Data/synonyms.csv"):
+    """
+    Standardizes values in animal_type, animal_age, or other_party columns using synonyms.csv.
+    If synonyms.csv does not exist, creates an empty one with columns: column_name, desired_value, synonym_value.
+    Replaces any value in the specified column that matches synonym_value (case-insensitive) with desired_value.
+    """
+    import numpy as np
+    columns = ["column_name", "desired_value", "synonym_value"]
+    if os.path.exists(synonyms_path):
+        syn_df = pd.read_csv(synonyms_path)
+    else:
+        syn_df = pd.DataFrame(columns=columns)
+        syn_df.to_csv(synonyms_path, index=False)
+
+    # Only process if there are synonyms to check
+    for _, row in syn_df.iterrows():
+        col = row.get("column_name", "")
+        desired = row.get("desired_value", "")
+        synonym = row.get("synonym_value", "")
+        if col in df.columns and synonym:
+            # Replace case-insensitive, but preserve desired_value capitalization
+            df[col] = df[col].apply(
+                lambda x: desired if isinstance(x, str) and x.strip().lower() == str(synonym).strip().lower() else x
+            )
+    return df
+
+
+def extract_year_and_part(df):
+    """
+    Adds 'year' and 'year_part' columns based on 'time_period'.
+    - If time_period is 4 digits, year = time_period, year_part = 'during'.
+    - If time_period is a date (MM/DD/YYYY), year = YYYY, year_part = 'beginning' if month is 1 or 01, 'end' if month is 12, else 'during'.
+    """
+    def parse_period(tp):
+        if pd.isna(tp):
+            return '', ''
+        tp = str(tp).strip()
+        if len(tp) == 4 and tp.isdigit():
+            return tp, 'during'
+        # Try to parse as MM/DD/YYYY
+        try:
+            parts = tp.split('/')
+            if len(parts) == 3:
+                month = parts[0].zfill(2)
+                year = parts[2][-4:]
+                if month in ['1', '01']:
+                    return year, 'beginning'
+                elif month == '12':
+                    return year, 'end'
+                else:
+                    return year, 'during'
+        except Exception:
+            pass
+        return '', ''
+    df[['year', 'year_part']] = df['time_period'].apply(lambda x: pd.Series(parse_period(x)))
+    return df
+
+
+def update_facilities_csv(df, facilities_path="./Data/facilities.csv"):
+    """
+    Ensures all unique facility names in df['facility_name'] are present in facilities.csv (name or synonyms).
+    If facilities.csv does not exist, creates it with required columns.
+    Adds missing facilities to the end and overwrites the file.
+    Returns the updated facilities DataFrame.
+    """
+    columns = ["name", "synonyms", "street_address", "city", "state", "zip", "long", "lat"]
+    if os.path.exists(facilities_path):
+        facilities_df = pd.read_csv(facilities_path)
+    else:
+        facilities_df = pd.DataFrame(columns=columns)
+
+    # Ensure all required columns exist
+    for col in columns:
+        if col not in facilities_df.columns:
+            facilities_df[col] = ""
+
+    # Get unique facility names from input df
+    unique_names = set(df["facility_name"].unique())
+    # Remove names that are empty or only whitespace
+    unique_names = {name for name in unique_names if isinstance(name, str) and name.strip()}
+    # Get names and synonyms from facilities_df
+    existing_names = set(facilities_df["name"].dropna().astype(str))
+    # Synonyms may be comma-separated lists
+    existing_synonyms = set()
+    if "synonyms" in facilities_df.columns:
+        for syns in facilities_df["synonyms"].dropna():
+            for s in str(syns).split(","):
+                s = s.strip()
+                if s:
+                    existing_synonyms.add(s)
+
+    # Add missing facilities
+    for name in unique_names:
+        if name not in existing_names and name not in existing_synonyms:
+            # Skip names that are empty or only whitespace (extra guard)
+            if not isinstance(name, str) or not name.strip():
+                continue
+            new_row = {col: "" for col in columns}
+            new_row["name"] = name
+            facilities_df = pd.concat([facilities_df, pd.DataFrame([new_row])], ignore_index=True)
+
+    # Overwrite the file
+    facilities_df.to_csv(facilities_path, index=False)
+    return None
+
 
 def load_data(file_path):
     """Load data from a CSV file into a pandas DataFrame."""
@@ -51,5 +196,9 @@ if __name__ == "__main__":
     melty = unpivot_facility_metrics(data)
     columnar = split_metric_name_columns(melty)
     more_columns = split_animal_description(columnar)
-    print(more_columns.head())
-    write_data(more_columns, "./Data/columnar.csv")
+    all_things_parsed = extract_year_and_part(more_columns)
+    update_facilities_csv(more_columns)
+    synonymed = check_animal_synonym(all_things_parsed)
+    update_no_kill_colorado_data(synonymed)
+    # print(all_things_parsed.head())
+    # write_data(all_things_parsed, "./Data/columnar.csv")
