@@ -45,25 +45,28 @@ def check_animal_synonym(df, synonyms_path="./Data/synonyms.csv"):
     If synonyms.csv does not exist, creates an empty one with columns: column_name, desired_value, synonym_value.
     Replaces any value in the specified column that matches synonym_value (case-insensitive) with desired_value.
     """
-    import numpy as np
-    columns = ["column_name", "desired_value", "synonym_value"]
+    columns = ["animal_description", "desired_age", "desired_animal"]
     if os.path.exists(synonyms_path):
         syn_df = pd.read_csv(synonyms_path)
     else:
         syn_df = pd.DataFrame(columns=columns)
         syn_df.to_csv(synonyms_path, index=False)
 
-    # Only process if there are synonyms to check
-    for _, row in syn_df.iterrows():
-        col = row.get("column_name", "")
-        desired = row.get("desired_value", "")
-        synonym = row.get("synonym_value", "")
-        if col in df.columns and synonym:
-            # Replace case-insensitive, but preserve desired_value capitalization
-            df[col] = df[col].apply(
-                lambda x: desired if isinstance(x, str) and x.strip().lower() == str(synonym).strip().lower() else x
-            )
-    return df
+    df["animal_description_match"] = df["animal_description"].str.strip().str.lower()
+    syn_df["animal_description_match"] = syn_df["animal_description"].str.strip().str.lower()
+    merged_df = pd.merge(df, syn_df, how='left', left_on='animal_description_match', right_on='animal_description_match', suffixes=('', '_syn'), indicator=True)
+    # Clean up merged_df as requested
+    cleaned = merged_df.copy()
+    cleaned["animal_age"] = cleaned.apply(
+        lambda row: row["desired_age"] if row["_merge"] == "both" and pd.notnull(row["desired_age"]) else row["animal_age"], axis=1
+    )
+    cleaned["animal_type"] = cleaned.apply(
+        lambda row: row["desired_animal"] if row["_merge"] == "both" and pd.notnull(row["desired_animal"]) else row["animal_type"], axis=1
+    )
+    out_cols = ["facility_name", "other_party", "facility_metric_value", "year", "year_part", "animal_age", "animal_type"]
+    out_cols = [col for col in out_cols if col in cleaned.columns]
+    result = cleaned[out_cols]
+    return result
 
 
 def extract_year_and_part(df):
@@ -200,5 +203,4 @@ if __name__ == "__main__":
     update_facilities_csv(more_columns)
     synonymed = check_animal_synonym(all_things_parsed)
     update_no_kill_colorado_data(synonymed)
-    # print(all_things_parsed.head())
-    # write_data(all_things_parsed, "./Data/columnar.csv")
+    write_data(all_things_parsed, "./Data/No-Kill-Colorado-Data.csv")
