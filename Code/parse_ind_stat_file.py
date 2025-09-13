@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 
+"""Expects file from : https://ag.colorado.gov/animal-welfare/pet-animal-care-facilities-act-pacfa/animal-shelter-and-rescue-individual-statistics"""
+
 def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.csv"):
     """
     Updates No-Kill-Colorado-Data.csv with new data for a given year, removing any existing data for that year.
