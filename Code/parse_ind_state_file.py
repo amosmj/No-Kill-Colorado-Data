@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 
+import utilities
+
 """Expects file from : https://ag.colorado.gov/animal-welfare/pet-animal-care-facilities-act-pacfa/animal-shelter-and-rescue-individual-statistics"""
 
 def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.csv"):
@@ -37,7 +39,7 @@ def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.c
     # Append and sort
     combined = pd.concat([existing_df, new_df], ignore_index=True)
     combined = combined.sort_values(by=["year", "year_part", "animal_type", "animal_age", "other_party", "facility_name"])
-    combined.to_csv(output_path, index=False)
+    utilities.write_data(combined,output_path)
     return combined
 
 
@@ -145,8 +147,7 @@ def update_facilities_csv(df, facilities_path="./Data/facilities.csv"):
             new_row["name"] = name
             facilities_df = pd.concat([facilities_df, pd.DataFrame([new_row])], ignore_index=True)
 
-    # Overwrite the file
-    facilities_df.to_csv(facilities_path, index=False)
+    utilities.write_data(facilities_df,facilities_path)
     return None
 
 
@@ -174,11 +175,6 @@ def split_metric_name_columns(df):
     df['other_party'] = splits[2] if splits.shape[1] > 2 else None
     return df
 
-def write_data(df, file_path):
-    """Write the DataFrame to a CSV file."""
-    # Always write all columns, including any new ones
-    df.to_csv(file_path, index=False, columns=df.columns.tolist())
-
 def split_animal_description(df):
     """
     Splits the 'animal_description' column into 'animal_age' and 'animal_type' using the first space.
@@ -197,7 +193,7 @@ def split_animal_description(df):
     return df
 
 if __name__ == "__main__":
-    data = load_data("./Data/2023 Colorado Animal Shelter and Rescue Individual Report - Sheet1.csv")
+    data = load_data("/home/mikeamos/No-Kill-Colorado-Data/Data/2024 Colorado Animal Shelter and Rescue Individual Report - Sheet1.csv")
     melty = unpivot_facility_metrics(data)
     columnar = split_metric_name_columns(melty)
     more_columns = split_animal_description(columnar)
@@ -205,4 +201,4 @@ if __name__ == "__main__":
     update_facilities_csv(more_columns)
     synonymed = check_animal_synonym(all_things_parsed)
     update_no_kill_colorado_data(synonymed)
-    write_data(all_things_parsed, "./Data/No-Kill-Colorado-Data.csv")
+    # write_data(synonymed, "./Data/No-Kill-Colorado-Data.csv")
