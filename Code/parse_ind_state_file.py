@@ -17,7 +17,7 @@ def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.c
     ]
     # Read existing data if file exists
     if os.path.exists(output_path):
-        existing_df = pd.read_csv(output_path)
+        existing_df = pd.read_csv(output_path, dtype=str)
     else:
         existing_df = pd.DataFrame(columns=columns)
 
