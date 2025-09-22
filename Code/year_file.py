@@ -1,6 +1,7 @@
 import os
 import pandas as pd
-
+import numpy as np
+import os
 import utilities
 
 """Expects file from : https://ag.colorado.gov/animal-welfare/pet-animal-care-facilities-act-pacfa/animal-shelter-and-rescue-individual-statistics"""
@@ -10,8 +11,6 @@ def update_no_kill_colorado_data(df, output_path="./Data/No-Kill-Colorado-Data.c
     Updates No-Kill-Colorado-Data.csv with new data for a given year, removing any existing data for that year.
     Appends new data, sorts, and overwrites the file.
     """
-    import numpy as np
-    import os
     columns = [
         "facility_name", "other_party", "year", "year_part", "animal_age", "animal_type", "facility_metric_value"
     ]
@@ -192,13 +191,20 @@ def split_animal_description(df):
     df[['animal_age', 'animal_type']] = df['animal_description'].apply(lambda x: pd.Series(split_desc(x)))
     return df
 
-if __name__ == "__main__":
-    data = load_data("/home/mikeamos/No-Kill-Colorado-Data/Data/2024 Colorado Animal Shelter and Rescue Individual Report - Sheet1.csv")
-    melty = unpivot_facility_metrics(data)
+def parse_year_file(file_path):
+    """
+    Parses the year file and returns a cleaned DataFrame with necessary transformations.
+    """
+    df = load_data(file_path)
+    melty = unpivot_facility_metrics(df)
     columnar = split_metric_name_columns(melty)
     more_columns = split_animal_description(columnar)
     all_things_parsed = extract_year_and_part(more_columns)
     update_facilities_csv(more_columns)
     synonymed = check_animal_synonym(all_things_parsed)
     update_no_kill_colorado_data(synonymed)
-    # write_data(synonymed, "./Data/No-Kill-Colorado-Data.csv")
+    return synonymed
+
+if __name__ == "__main__":
+    data = load_data("/home/mikeamos/No-Kill-Colorado-Data/Data/2024 Colorado Animal Shelter and Rescue Individual Report - Sheet1.csv")
+    parse_year_file(data)
