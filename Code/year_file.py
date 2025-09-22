@@ -202,7 +202,7 @@ def parse_year_file(file_path):
     all_things_parsed = extract_year_and_part(more_columns)
     update_facilities_csv(more_columns)
     synonymed = check_animal_synonym(all_things_parsed)
-    update_no_kill_colorado_data(synonymed)
+    update_no_kill_colorado_data(all_things_parsed)
     return synonymed
 
 if __name__ == "__main__":

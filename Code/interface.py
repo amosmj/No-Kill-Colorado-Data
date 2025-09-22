@@ -127,6 +127,7 @@ def interface_for_annual_import():
         return data_year, year_file, pacfa_file
     else:
         st.write("Waiting for file upload and year input...")
+        return None, None, None
 
 if __name__ == "__main__":  
     run_streamlit_commands(port=8501, open_browser=True, timeout=10) 
